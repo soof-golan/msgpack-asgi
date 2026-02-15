@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 from functools import partial
@@ -22,7 +23,7 @@ class MessagePackMiddleware:
         # Allow customization to support older implementations, such as those using
         # application/x-msgpack.
         content_type: str = "application/vnd.msgpack",
-        allow_naive_streaming: bool = False,
+        allow_naive_streaming: bool = True,
     ) -> None:
         self._app = app
         self._packb = packb
@@ -110,7 +111,9 @@ class _MessagePackResponder:
 
                 message = await self._receive()
 
-            message["body"] = json.dumps(self._unpackb(body_buffer.getvalue())).encode()
+            message["body"] = await asyncio.to_thread(
+                self._unpack_and_encode, body_buffer.getvalue()
+            )
 
             return message
 
@@ -129,9 +132,18 @@ class _MessagePackResponder:
                     " streaming, set allow_naive_streaming=True in the middleware."
                 )
 
-        message["body"] = json.dumps(self._unpackb(body)).encode() if body else b"{}"
+        if body:
+            body = await asyncio.to_thread(self._unpack_and_encode, body)
+        else:
+            body = b"{}"
+        message["body"] = body
 
         return message
+
+    def _unpack_and_encode(self, body: bytes) -> bytes:
+        unpacked = self._unpackb(body)
+        as_json = json.dumps(unpacked)
+        return as_json.encode()
 
     async def send_with_msgpack(self, message: Message) -> None:
         if not self._should_encode_from_json_to_msgpack:
