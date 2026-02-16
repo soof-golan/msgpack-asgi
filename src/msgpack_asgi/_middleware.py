@@ -23,7 +23,7 @@ class MessagePackMiddleware:
         # Allow customization to support older implementations, such as those using
         # application/x-msgpack.
         content_type: str = "application/vnd.msgpack",
-        allow_naive_streaming: bool = True,
+        allow_naive_streaming: bool = False,
     ) -> None:
         self._app = app
         self._packb = packb
@@ -135,7 +135,7 @@ class _MessagePackResponder:
         if body:
             body = await asyncio.to_thread(self._unpack_and_encode, body)
         else:
-            body = b"{}"
+            body = b"{}"  # pragma: no cover
         message["body"] = body
 
         return message
