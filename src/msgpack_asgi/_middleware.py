@@ -145,6 +145,11 @@ class _MessagePackResponder:
         as_json = json.dumps(unpacked)
         return as_json.encode()
 
+    def _pack_and_encode(self, body: bytes) -> bytes:
+        as_json = json.loads(body)
+        packed = self._packb(as_json)
+        return packed
+
     async def send_with_msgpack(self, message: Message) -> None:
         if not self._should_encode_from_json_to_msgpack:
             await self._send(message)
@@ -175,7 +180,10 @@ class _MessagePackResponder:
                 if message.get("more_body", False):
                     return
 
-                body = self._packb(json.loads(self._response_buffer.getvalue()))
+                body = await asyncio.to_thread(
+                    self._pack_and_encode, self._response_buffer.getvalue()
+                )
+
             elif message.get("more_body", False):
                 raise NotImplementedError(
                     "Streaming msgpack response not supported. To allow naive "
@@ -183,7 +191,7 @@ class _MessagePackResponder:
                     "middleware."
                 )
             else:
-                body = self._packb(json.loads(body))
+                body = await asyncio.to_thread(self._pack_and_encode, body)
 
             headers = MutableHeaders(raw=self.initial_message["headers"])
             headers["Content-Type"] = self._content_type
