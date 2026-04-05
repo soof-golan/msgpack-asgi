@@ -157,13 +157,8 @@ class _MessagePackResponder:
             return
 
         if message["type"] == "http.response.start":
-            if message["status"] == HTTP_204_NO_CONTENT:
-                self._should_encode_from_json_to_msgpack = False
-                await self._send(message)
-                return
-
             headers = Headers(raw=message["headers"])
-            if headers["content-type"] != "application/json":
+            if headers.get("content-type") != "application/json":
                 # Client accepts msgpack, but the app did not send JSON data.
                 # (Note that it may have sent msgpack-encoded data.)
                 self._should_encode_from_json_to_msgpack = False
